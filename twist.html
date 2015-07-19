@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html;charset=utf-8">
+<meta name="keywords" content="WebGL,interactive">
+<meta name="author" content="soesilo wijono">
+<title>Assignment 1 - Tessellation & Twist</title>
+<link rel="stylesheet" href="./jquery-ui/themes/le-frog/jquery-ui.css">
+<link rel="stylesheet" href="./jquery-ui/themes/le-frog/theme.css">
+<script src="./jquery/jquery.min.js"></script>
+<script src="./jquery-ui/jquery-ui.min.js"></script>
+<script id="vertex-shader" type="x-shader/x-vertex">
+attribute vec4 vPosition;
+attribute vec4 vColor;
+varying vec4 fColor;
+void
+main()
+{
+    gl_Position = vPosition; 
+	fColor = vColor;
+}
+</script>
+<script id="fragment-shader" type="x-shader/x-fragment">
+precision mediump float;
+varying vec4 fColor;
+void
+main()
+{
+    gl_FragColor = fColor; 
+}
+</script>
+<script type="text/javascript" src="Common/webgl-utils.js"></script>
+<script type="text/javascript" src="Common/initShaders.js"></script>
+<script type="text/javascript" src="Common/MV.js"></script>
+<script type="text/javascript" src="twist.js"></script>
+<style>
+.ui-button .ui-button-text {
+   padding: 4px 8px 4px 8px !important;
+   font-size: .8em !important;
+}
+body {
+  font-family: sans-serif;
+  font-size: .9em;
+}
+</style>
+</head>   
+<body>
+<div>
+<table><tr><td style="border:solid black 1px;border-radius:6px;">
+<table style="padding:4px;" title="Drag or click the slider..">
+  <tr><td>
+	<table style="width:100%;"><tr>
+	<td style="text-align:left;white-space:nowrap;"><span style="border:0;border-radius:4px;
+	background-color:#888888;color:white;">&nbsp;-720&nbsp;</span></td>
+	<td style="text-align:center;width:100%;">
+	<table style="margin-left:240px;margin-right:240px;"><tr>
+    <td><label for="thetaval">Amount of twist in degree:&nbsp;</label></td>
+    <td><input type="text" id="thetaval" readonly size="4" style="border:0;border-radius:4px;
+	background-color:black;color:white;font-weight:bold;padding:3px;text-align:right;" /></td>
+	<td>&nbsp;<button id="btnMin" style="font-size:small;">&nbsp;</button></td>
+	<td><button id="btnPlus" style="font-size:small;">&nbsp;</button></td>
+	</tr></table>
+	</td>
+	<td style="text-align:right;white-space:nowrap;"><span style="border:0;border-radius:4px;
+	background-color:#888888;color:white;">&nbsp;+720&nbsp;</span></td>
+	</tr></table>
+  </td></tr> 
+  <tr><td>
+  <div id="sliderTheta" style="width:900px;"></div>
+  </td></tr>
+</table>
+</td></tr></table>
+</div>
+<div>
+<table><tr><td style="vertical-align:top;width:320px;">
+<table style="text-align:right;">
+  <tr><td style="border:solid black 1px;border-radius:6px;">
+	<table style="padding:8px;" title="Drag or click the slider..">
+	  <tr><td>
+		<label for="stepval">Amount of tessellation (0 .. 6):&nbsp;</label>
+		<input type="text" id="stepval" readonly size="1" style="border:0;border-radius:4px;
+		background-color:black;color:white;font-weight:bold;padding:3px;text-align:center;" />
+	  </td></tr> 
+	  <tr><td>
+		<div id="sliderStep" style="width:280px;"></div>
+	  </td></tr>
+	</table>
+  </td></tr><tr><td style="border:solid black 1px;border-radius:6px;padding:8px;">
+  <span id="radioShape">
+    <span>Shape:</span><br/>
+	<input type="radio" name="radioShape" id="radioShape1" value="1" checked="checked" />
+	<label for="radioShape1" style="font-size:small;">Triangle</label>
+	<input type="radio" name="radioShape" id="radioShape2" value="2" />
+	<label for="radioShape2" style="font-size:small;">Square</label>
+	<input type="radio" name="radioShape" id="radioShape3" value="3" />
+	<label for="radioShape3" style="font-size:small;">Star</label>
+  </span>
+  </td></tr><tr><td style="border:solid black 1px;border-radius:6px;padding:8px;">
+  <span id="radioColor">
+    <span>Surface color:</span><br/>
+	<input type="radio" name="radioColor" id="radioColor1" value="1" checked="checked" />
+	<label for="radioColor1" style="font-size:small;">Wireframe</label>
+	<input type="radio" name="radioColor" id="radioColor2" value="2" />
+	<label for="radioColor2" style="font-size:small;">Red</label>
+	<input type="radio" name="radioColor" id="radioColor3" value="3" />
+	<label for="radioColor3" style="font-size:small;">Maxwell</label>
+	<input type="radio" name="radioColor" id="radioColor4" value="4" />
+	<label for="radioColor4" style="font-size:small;">Random</label>
+  </span>
+  </td></tr><tr><td style="border:solid black 1px;border-radius:6px;padding:8px;">
+	<span id="spanGasket">Draw in gasket mode?</span><br/>
+    <input type="checkbox" id="checkGasket"">
+	<label for="checkGasket" style="font-size:small;">Gasket = No</label>
+  </td></tr><tr><td style="border:solid black 1px;border-radius:6px;padding:8px;">
+	<span>Draw original shape?</span><br/>
+    <input type="checkbox" id="checkDrawBig">
+	<label for="checkDrawBig" style="font-size:small;">Original shape = No</label>
+  </td></tr></td></tr><tr><td style="border:solid black 1px;border-radius:6px;padding:8px;">
+	<span>&nbsp;<br/>Assignment #1<br/>Interactive Computer Graphics with WebGL<br/>
+	<a href="https://www.coursera.org/course/webgl" target="_blank">
+	https://www.coursera.org/course/webgl</a><br/>&nbsp;</span>
+  </td></tr>
+</table>
+</td><td style="border:solid black 1px;border-radius:6px;background-color:black;">
+<canvas id="gl-canvas" width="600" height="600">
+Oops ... your browser doesn't support the HTML5 canvas element
+</canvas>
+</td></tr></table>
+</div>
+</body>
+</html>
