@@ -15,3 +15,6 @@ MIT License, &copy;2015-2020 soesilo wijono
 - [Assignment 3](https://flyingdisc.github.io/InteractiveWebGL/a3.html "Assignment 3")    
 - [Assignment 4](https://flyingdisc.github.io/InteractiveWebGL/a4.html "Assignment 4")    
 - [Assignment 5](https://flyingdisc.github.io/InteractiveWebGL/a5.html "Assignment 5")        
+
+- [YouTube video of assignment 4](https://www.youtube.com/watch?v=io3fAWP5Q6g "YouTube vid").    
+    
