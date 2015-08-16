@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html;charset=utf-8" >
+<meta name="keywords" content="WebGL,interactive">
+<meta name="author" content="soesilo wijono">
+<title>Assignment 3 - Geometric CAD</title>
+<link rel="stylesheet" href="./jquery-ui/themes/smoothness/jquery-ui.css">
+<link rel="stylesheet" href="./jquery-ui/themes/smoothness/theme.css">
+<script src="./jquery/jquery.min.js"></script>
+<script src="./jquery-ui/jquery-ui.min.js"></script>
+<script src='./script/spectrum.js'></script>
+<link rel='stylesheet' href='./script/spectrum.css' />
+<script id="vertex-shader" type="x-shader/x-vertex">
+attribute vec4 vPosition;
+attribute vec4 vColor;
+varying vec4 fColor;
+uniform mat4 modelViewMatrix;
+uniform mat4 normalViewMatrix;
+//uniform mat4 projectionMatrix;
+attribute vec4 aNormal;
+uniform vec3 uLightColor;
+uniform vec3 uLightDirection;
+uniform vec3 uAmbientColor;
+uniform bool uUseLighting;
+void main() {
+    gl_Position = modelViewMatrix * vPosition;
+	if (uUseLighting) {
+		vec3 normal = normalize(vec3(normalViewMatrix * aNormal));
+		float nDotLight = dot(uLightDirection, normal);
+		vec3 diffuse = uAmbientColor + (uLightColor * vec3(vColor) * vec3(nDotLight));
+		fColor = vec4(diffuse, vColor.a);
+	}
+	else 
+		fColor = vColor;
+} 
+</script>
+<script id="fragment-shader" type="x-shader/x-fragment">
+precision mediump float;
+varying vec4 fColor;
+void
+main() {
+	gl_FragColor = fColor;
+}
+</script>
+<script type="text/javascript" src="./Common/webgl-utils.js"></script>
+<script type="text/javascript" src="./Common/initShaders.js"></script>
+<script type="text/javascript" src="./Common/MV.js"></script>
+<script type="text/javascript" src="./script/jquery.json.min.js"></script>
+<script type="text/javascript" src="./script/vertex-data.js"></script>
+<script type="text/javascript" src="./script/control_a3_v5.js"></script>
+<script type="text/javascript" src="geomcad.js"></script>
+<style>
+.ui-button.ui-widget.buttonMin {
+   height: 20px;
+   width: 20px;
+}
+.ui-button.ui-widget.buttonPlus {
+   height: 20px;
+   width: 20px;
+}
+.ui-button .ui-button-text {
+   padding: 2px 4px 2px 4px !important;
+   font-size: .8em !important;
+}
+.ui-slider {
+  height: 6px;
+}
+.ui-slider .ui-slider-handle {
+  height: 16px;
+  width: 16px;
+  font-size: 12px;
+  text-align:center;
+  color: #999999;
+}
+body {
+  font-family: sans-serif;
+  font-size: .9em;
+}
+.ui-tabs .ui-tabs-panel {
+  padding: 2px 0 0 0;
+}
+.ui-tabs .ui-tabs-nav li {
+  height: 25px; 
+  font-size: 12px; 
+}
+.readOnlyText {
+  height: 12px;
+  border:0;
+  border-radius:2px;
+  background-color: black;
+  color:white;
+  font-weight:bold;
+  font-size: 11px;
+  padding:2px;
+  text-align:right;
+}
+.divMenu {
+  background-color:#DBDBEA;
+  border:1px solid #c3c3c3;
+  border-radius:3px;
+  padding-top: 2px;
+  padding-bottom:2px;
+}
+.tableSlider {
+  margin:0 auto;
+  background-color:#9797A6;
+  border-radius: 2px;
+  font-size: 11px;
+}
+.buttonMin, .buttonPlus {
+  font-size: 10px;
+}
+.cellbox {
+  border-bottom: 1px solid;
+}
+input[type="file"] {
+  display: none;
+}
+</style>
+</head>
+<body>
+<table><tr>
+<td style="width:280px;vertical-align:top;border:0;text-align:center;">
+  <div class="divMenu" style="padding:4px;border-top-radius:8px;">
+    <div style="font-size:small;background-color:#44ee44;"><b>Create Menu&#9658;</b></div>
+    <table style="margin:0 auto;"><tr>
+    <td><label for="menuObject" style="font-size:small;"><b>Object&#9658;</b></label></td>
+    <td style="font-size:small;">
+	<ul id="menuSelectObject">
+	<li id="menuObjectSphere" class="menuObjectSel">Sphere</li>
+	<li id="menuObjectCone" class="menuObjectSel">Cone</li>
+	<li id="menuObjectCylinder" class="menuObjectSel">Cylinder</li>
+	</ul></td>
+	<td><button id="btnUndo" style="margin-left:20px;">&nbsp;&nbsp;Undo&nbsp;&nbsp;</button></td>
+	</tr></table>
+  </div>
+  <div class="divMenu">
+	<span style="font-size:small;"><b>Object color</b>&#9658;</span>
+	<input type="text" id="btnObjColor" class="colorSelector" />
+  </div>
+  <div class="divMenu">
+    <div style="font-size:small;"><b>Set: Scale (Size)&#9660;</b></div>
+    <table style="width:100%;font-size:12px;" title="Drag or click the slider.."><tr>
+	    <td style="width:88%;padding-right:6px;"><div id="sliderScaleX"></div></td>
+	    <td style="width:4%;"><button class="buttonMin" id="btnMinSX">&nbsp;</button></td>
+	    <td style="width:4%;"><button class="buttonPlus" id="btnPlusSX">&nbsp;</button></td>
+		<td style="width:4%;"><input type="text" id="textScaleX" readonly size="3" class="readOnlyText" value="3" /></td>
+	  </tr><tr>
+	    <td style="width:88%;padding-right:6px;"><div id="sliderScaleY"></div></td>
+	    <td style="width:4%;"><button class="buttonMin" id="btnMinSY">&nbsp;</button></td>
+	    <td style="width:4%;"><button class="buttonPlus" id="btnPlusSY">&nbsp;</button></td>
+		<td style="width:4%;"><input type="text" id="textScaleY" readonly size="3" class="readOnlyText" value="3" /></td>
+	  </tr><tr>
+	    <td style="width:88%;padding-right:6px;"><div id="sliderScaleZ"></div></td>
+	    <td style="width:4%;"><button class="buttonMin" id="btnMinSZ">&nbsp;</button></td>
+	    <td style="width:4%;"><button class="buttonPlus" id="btnPlusSZ">&nbsp;</button></td>
+		<td style="width:4%;"><input type="text" id="textScaleZ" readonly size="3" class="readOnlyText" value="3" /></td>
+	  </tr>
+    </table>
+  </div>
+  <div class="divMenu">
+	<div style="font-size:small;"><b>Set: Translate (Position)&#9660;</b></div>
+    <table style="width:100%;font-size:12px;" title="Drag or click the slider.."><tr>
+	    <td style="width:88%;padding-right:6px;"></td>
+	    <td style="width:4%;"></td>
+	    <td style="width:4%;"><b>X&#9658;</b></td>
+	    <td style="width:4px;"><input type="text" id="textTranslateX" readonly size="3" class="readOnlyText" value="0" /></td>
+	  </tr><tr>
+	    <td style="width:88%;padding-right:6px;"></td>
+	    <td style="width:4%;"></td>
+	    <td style="width:4%;"><b>Y&#9658;</b></td>
+	    <td style="width:4px;"><input type="text" id="textTranslateY" readonly size="3" class="readOnlyText" value="0" /></td>
+	  </tr><tr>
+	    <td style="width:88%;padding-right:6px;"><div id="sliderTranslateZ"></div></td>
+	    <td style="width:4%;"><button class="buttonMin" id="btnMinTZ">&nbsp;</button></td>
+	    <td style="width:4%;"><button class="buttonPlus" id="btnPlusTZ">&nbsp;</button></td>
+		<td style="width:4px;"><input type="text" id="textTranslateZ" readonly size="3" class="readOnlyText" value="0" /></td>
+	  </tr>
+    </table>
+	<div style="font-size:small;font-weight:bold;background-color:#444444;color:white;padding:2px;">Click on canvas to place object &#9658;</div>
+  </div>
+  <div class="divMenu">
+    <div style="font-size:small;"><b>Set: Rotate (Orientation)&#9660;</b></div>
+    <table style="width:100%;font-size:12px;" title="Drag or click the slider.."><tr>
+	    <td style="width:88%;padding-right:6px;"><div id="sliderRotateX"></div></td>
+	    <td style="width:4%;"><button class="buttonMin" id="btnMinRX">&nbsp;</button></td>
+	    <td style="width:4%;"><button class="buttonPlus" id="btnPlusRX">&nbsp;</button></td>
+		<td style="width:4%;"><input type="text" id="textRotateX" readonly size="3" class="readOnlyText" value="0" /></td>
+	  </tr><tr>
+	    <td style="width:88%;padding-right:6px;"><div id="sliderRotateY"></div></td>
+	    <td style="width:4%;"><button class="buttonMin" id="btnMinRY">&nbsp;</button></td>
+	    <td style="width:4%;"><button class="buttonPlus" id="btnPlusRY">&nbsp;</button></td>
+		<td style="width:4%;"><input type="text" id="textRotateY" readonly size="3" class="readOnlyText" value="0" /></td>
+	  </tr><tr>
+	    <td style="width:88%;padding-right:6px;"><div id="sliderRotateZ"></div></td>
+	    <td style="width:4%;"><button class="buttonMin" id="btnMinRZ">&nbsp;</button></td>
+	    <td style="width:4%;"><button class="buttonPlus" id="btnPlusRZ">&nbsp;</button></td>
+		<td style="width:4%;"><input type="text" id="textRotateZ" readonly size="3" class="readOnlyText" value="0" /></td>
+	  </tr>
+    </table>
+  </div>
+  <div class="divMenu" style="padding:4px;">
+    <input type="checkbox" id="checkLighting" checked="checked">
+	<label for="checkLighting" style="font-size:small;">&#9668;<b>Lighting</b></label>
+  </div>
+  <div class="divMenu" style="padding:4px;">
+    <span id="radioSurface">
+    <span><b>Surface</b>&#9660;</span><br/>
+	<input type="radio" name="radioSurface" id="radioSurface1" value="0" checked="checked" />
+	<label for="radioSurface1" style="font-size:small;"><b>&nbsp;&nbsp;&nbsp;Both&nbsp;&nbsp;&nbsp;</b></label>
+	<input type="radio" name="radioSurface" id="radioSurface2" value="1" />
+	<label for="radioSurface2" style="font-size:small;"><b>&nbsp;&nbsp;Solid&nbsp;&nbsp;</b></label>
+	<input type="radio" name="radioSurface" id="radioSurface3" value="2" />
+	<label for="radioSurface3" style="font-size:small;"><b>Wireframe</b></label>
+    </span>
+  </div>
+  <!-- <div class="divMenu" style="padding:4px;">
+    <span id="radioRandom">
+	<span><b>Random color</b>&#9660;</span><br/>
+	<input type="radio" name="radioRandom" id="radioRandom0" value="0" checked="checked">
+	<label for="radioRandom0" style="font-size:small;">&nbsp;<b>Random Off</b>&nbsp;</label>
+	<input type="radio" name="radioRandom" id="radioRandom1" value="1">
+	<label for="radioRandom1" style="font-size:small;">&nbsp;<b>Random On</b>&nbsp;</label>
+	</span>
+  </div> -->
+  <div class="divMenu" style="padding:4px;">
+    <button id="clearCanvas">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<b>Clear canvas</b>&nbsp;&nbsp;&nbsp;</button>
+	<div style="height:4px;"></div>
+	<a id="downloadImage" href="#" download>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<b>Save image</b>&nbsp;&nbsp;&nbsp;&nbsp;</a>
+	<div style="height:4px;"></div>
+	<button id="saveJson">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<b>Save to JSON file</b>&nbsp;&nbsp</button>
+	<div style="height:4px;"></div>
+	<button id="btnLoadJson">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<b>Load JSON file</b>&nbsp;&nbsp</button>
+	<input type="file" id="loadJson" name="files[]" /></div>
+  </div>
+</td>
+<td style="width:240px;vertical-align:top;border:0;text-align:center;">
+<div class="divMenu" style="padding:4px;background-color:black;">
+<canvas id="gl-canvas" width="600"" height="600"
+  Oops ... your browser doesn't support the HTML5 canvas element
+</canvas>
+</div>
+<div style="text-align:center;"><i>Tested only in Chrome and Firefox browsers.</i></div>
+</td>
+<td style="width:240px;vertical-align:top;border:0;text-align:center;">
+  <div class="divMenu" style="padding:4px;border-top-radius:8px;">
+    <div style="font-size:small;background-color:#ff5555;"><b>&#9668;Select & Modify Menu</b></div>
+	<div style="font-size:small;"><b>Select an object&#9660;</b></div>
+	<div id="tableObjects" style="overflow-y:scroll;border:1px solid black;height:100px;">
+	</div>
+	<div style="padding:4px;">
+	<button id="deleteObject">&nbsp;&nbsp;&nbsp;<b>Delete selected object</b>&nbsp;&nbsp;&nbsp;</button>
+	</div>
+  </div>
+  <div class="divMenu">
+    <input type="text" id="btnEditColor" class="colorSelector" />
+	<span style="font-size:small;">&#9668;<b>Modify: Object's color</b></span>
+  </div>
+  <div class="divMenu">
+    <div style="font-size:small;"><b>Modify: Scale (Size)&#9660;</b></div>
+    <table style="width:100%;font-size:12px;" title="Drag or click the slider.."><tr>
+	    <td style="width:88%;padding-right:6px;"><div id="sliderScale2X"></div></td>
+	    <td style="width:4%;"><button class="buttonMin" id="btnMinS2X">&nbsp;</button></td>
+	    <td style="width:4%;"><button class="buttonPlus" id="btnPlusS2X">&nbsp;</button></td>
+		<td style="width:4%;"><input type="text" id="textScale2X" readonly size="3" class="readOnlyText" value="0" /></td>
+	  </tr><tr>
+	    <td style="width:88%;padding-right:6px;"><div id="sliderScale2Y"></div></td>
+	    <td style="width:4%;"><button class="buttonMin" id="btnMinS2Y">&nbsp;</button></td>
+	    <td style="width:4%;"><button class="buttonPlus" id="btnPlusS2Y">&nbsp;</button></td>
+		<td style="width:4%;"><input type="text" id="textScale2Y" readonly size="3" class="readOnlyText" value="0" /></td>
+	  </tr><tr>
+	    <td style="width:88%;padding-right:6px;"><div id="sliderScale2Z"></div></td>
+	    <td style="width:4%;"><button class="buttonMin" id="btnMinS2Z">&nbsp;</button></td>
+	    <td style="width:4%;"><button class="buttonPlus" id="btnPlusS2Z">&nbsp;</button></td>
+		<td style="width:4%;"><input type="text" id="textScale2Z" readonly size="3" class="readOnlyText" value="0" /></td>
+	  </tr>
+    </table>
+  </div>
+  <div class="divMenu">
+    <div style="font-size:small;"><b>Modify: Translate (Position)&#9660;</b></div>
+    <table style="width:100%;font-size:12px;" title="Drag or click the slider.."><tr>
+	    <td style="width:88%;padding-right:6px;"><div id="sliderTranslate2X"></div></td>
+	    <td style="width:4%;"><button class="buttonMin" id="btnMinT2X">&nbsp;</button></td>
+	    <td style="width:4%;"><button class="buttonPlus" id="btnPlusT2X">&nbsp;</button></td>
+		<td style="width:4%;"><input type="text" id="textTranslate2X" readonly size="3" class="readOnlyText" value="0" /></td>
+	  </tr><tr>
+	    <td style="width:88%;padding-right:6px;"><div id="sliderTranslate2Y"></div></td>
+	    <td style="width:4%;"><button class="buttonMin" id="btnMinT2Y">&nbsp;</button></td>
+	    <td style="width:4%;"><button class="buttonPlus" id="btnPlusT2Y">&nbsp;</button></td>
+		<td style="width:4%;"><input type="text" id="textTranslate2Y" readonly size="3" class="readOnlyText" value="0" /></td>
+	  </tr><tr>
+	    <td style="width:88%;padding-right:6px;"><div id="sliderTranslate2Z"></div></td>
+	    <td style="width:4%;"><button class="buttonMin" id="btnMinT2Z">&nbsp;</button></td>
+	    <td style="width:4%;"><button class="buttonPlus" id="btnPlusT2Z">&nbsp;</button></td>
+		<td style="width:4%;"><input type="text" id="textTranslate2Z" readonly size="3" class="readOnlyText" value="0" /></td>
+	  </tr>
+    </table>
+  </div>
+  <div class="divMenu">
+    <div style="font-size:small;"><b>Modify: Rotate (Orientation)&#9660;</b></div>
+    <table style="width:100%;font-size:12px;" title="Drag or click the slider.."><tr>
+	    <td style="width:88%;padding-right:6px;"><div id="sliderRotate2X"></div></td>
+	    <td style="width:4%;"><button class="buttonMin" id="btnMinR2X">&nbsp;</button></td>
+	    <td style="width:4%;"><button class="buttonPlus" id="btnPlusR2X">&nbsp;</button></td>
+		<td style="width:4%;"><input type="text" id="textRotate2X" readonly size="3" class="readOnlyText" value="0" /></td>
+	  </tr><tr>
+	    <td style="width:88%;padding-right:6px;"><div id="sliderRotate2Y"></div></td>
+	    <td style="width:4%;"><button class="buttonMin" id="btnMinR2Y">&nbsp;</button></td>
+	    <td style="width:4%;"><button class="buttonPlus" id="btnPlusR2Y">&nbsp;</button></td>
+		<td style="width:4%;"><input type="text" id="textRotate2Y" readonly size="3" class="readOnlyText" value="0" /></td>
+	  </tr><tr>
+	    <td style="width:88%;padding-right:6px;"><div id="sliderRotate2Z"></div></td>
+	    <td style="width:4%;"><button class="buttonMin" id="btnMinR2Z">&nbsp;</button></td>
+	    <td style="width:4%;"><button class="buttonPlus" id="btnPlusR2Z">&nbsp;</button></td>
+		<td style="width:4%;"><input type="text" id="textRotate2Z" readonly size="3" class="readOnlyText" value="0" /></td>
+	  </tr>
+    </table>
+  </div>
+  <div class="divMenu" style="padding:4px;">
+  <span>&nbsp;Assignment #3<br/>Geometric CAD</span><br/><span style="font-size:smaller;">Interactive Computer Graphics with WebGL<br/>
+  <a href="https://www.coursera.org/course/webgl" target="_blank">https://www.coursera.org/course/webgl</a>&nbsp;</span>
+  </div>
+</td>
+</tr>
+</table>
+</div>
+<h2>Help:</h2>
+<b>To place an object:</b><br/>
+<ul>
+<li>Focus on the left pane (Create menu).</li>
+<li>Select an object from drop-down menu, a sphere, a cone, or a cylinder.</li>
+<li>Set object's color from "Object color" color-picker on the right pane. (Color-picker is TinyColor by Brian Grinstead.)</li>
+<li>Set size (scale) of object. In 3D: X, Y and Z scales.</li>
+<li>Set position (translate) of object. Z translation can be set via slider. X and Y translation is set automatically when mouse-clicking on canvas.</li>
+<li>Set orientation (rotate) of object. In 3D: X, Y and Z rotations. This is object's rotation, not world rotation, not camera rotation.</li>
+<li>Click on canvas to place the chosen object.</li>
+<li>Placed object can then be canceled by clicking "Undo" button</li>
+</ul>
+<b>To select an object:</b><br/>
+<ul>
+<li>Focus on the right pane (Select & Modify menu).</li>
+<li>In the table, select an object to be selected, by clicking on the radio-button. Scroll up/down the table if necessary.</li>
+<li>After selecting the object, it can be deleted, or to be modified.</li>
+<li>To <b>delete</b> the selected object, click on "Delete selected object" button.</li>
+<li>To <b>modify</b> the selected object, slide the sliders: scale, translate, rotate.</li>
+</ul>
+<b>Lighting:</b><br/>
+<ul>
+<li>Lighting checkbox is used to turn on/off the light.</li>
+<li>The light is single directional and basic ambient with object's diffuse color.</li>
+</ul>
+<b>Surface rendering:</b><br/>
+<ul>
+<li>Objects can be rendered in solid shapes, or in wireframes (meshes), or both.</li>
+</ul>
+<b>Canvas clearance:</b><br/>
+<ul>
+<li>Click "Clear canvas" button to delete all objects on canvas.</li>
+</ul>
+<b>Save image:</b><br/>
+<ul>
+<li>Click "Save image" button to save / download current canvas' image.</li>
+</ul>
+<b>Save to, and Load JSON file:</b><br/>
+<ul>
+<li>Click "Save to JSON file" button to save current canvas' objects data to a JSON text file. The saved JSON file can then be uploaded back by using "Load JSON file" button.</li>
+</ul>
+<hr>
+</div>
+<div id="celeng"></div>
+</body>
+</html>
