@@ -365,6 +365,16 @@ function rotate( angle, axis )
     return result;
 }
 
+function rotateX(theta) {
+  return rotate(theta, 1, 0, 0);
+}
+function rotateY(theta) {
+    return rotate(theta, 0, 1, 0);
+}
+function rotateZ(theta) {
+  return rotate(theta, 0, 0, 1);
+}
+
 //----------------------------------------------------------------------------
 
 function scale( x, y, z )
@@ -598,7 +608,7 @@ function mix( u, v, s )
 //
 // Vector and Matrix functions
 //
-
+/*
 function scale( s, u )
 {
     if ( !Array.isArray(u) ) {
@@ -612,7 +622,7 @@ function scale( s, u )
     
     return result;
 }
-
+*/
 //----------------------------------------------------------------------------
 //
 //
