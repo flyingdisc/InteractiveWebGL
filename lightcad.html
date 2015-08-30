@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html;charset=utf-8" >
+<meta name="keywords" content="WebGL,interactive">
+<meta name="author" content="soesilo wijono">
+<title>Assignment 4 - Adding Lighting</title>
+<link rel="stylesheet" href="./jquery-ui/themes/smoothness/jquery-ui.css">
+<link rel="stylesheet" href="./jquery-ui/themes/smoothness/theme.css">
+<script src="./jquery/jquery.min.js"></script>
+<script src="./jquery-ui/jquery-ui.min.js"></script>
+<script src='./script/spectrum.js'></script>
+<link rel='stylesheet' href='./script/spectrum.css' />
+
+<script id="vertex-shader" type="x-shader/x-vertex">
+attribute vec4 vPosition;
+attribute vec4 vColor;
+attribute vec4 vNormal;
+
+const int cNumLight = 2;
+
+uniform mat4 modelViewMatrix;
+//uniform mat4 projectionMatrix;
+uniform mat3 normalMatrix;
+uniform vec4 uLightPosition[cNumLight];  // world light position
+
+varying vec3 varNormal;
+varying vec3 varPosition;
+varying vec3 varLightPosition[cNumLight];
+varying vec3 varLightRay[cNumLight];
+varying vec3 varEyeVec;
+varying vec4 fColor;
+
+void main() 
+{
+	fColor = vColor;
+
+	// transform vertex position
+    vec4 vPos = modelViewMatrix * vPosition;
+	
+	// for distance calculation
+	varPosition = vPosition.xyz;
+	
+	// transform vertex normal into eye coordinates
+    varNormal = normalize( normalMatrix * vNormal.xyz );
+	
+	// light direction
+	for (int i=0; i < cNumLight; i++) {
+		varLightPosition[i] = uLightPosition[i].xyz;
+		if (uLightPosition[i].w == 0.0) 
+			varLightRay[i] = uLightPosition[i].xyz;
+		else
+			varLightRay[i] = uLightPosition[i].xyz - vPos.xyz;
+	}
+	
+	// vector eye
+	varEyeVec = -vec3(vPos.xyz);
+	
+	gl_Position = /* projectionMatrix * */ modelViewMatrix * vPosition;
+} 
+</script>
+
+<script id="fragment-shader" type="x-shader/x-fragment">
+
+precision mediump float;
+
+const int cNumLight = 2;
+const vec4 darkAmbient = vec4(0.1, 0.1, 0.1, 0.0);
+
+uniform vec4 uLightAmbient[cNumLight];
+uniform vec4 uLightDiffuse[cNumLight];
+uniform vec4 uLightSpecular[cNumLight];
+
+uniform vec4 uMaterialAmbient;
+uniform vec4 uMaterialDiffuse;
+uniform vec4 uMaterialSpecular;
+uniform float uShininess; 
+
+const float attenuationFactorA = 0.004;
+const float attenuationFactorB = 0.0004;
+uniform bool isAttenuate;
+uniform int uMovingLight;  // which light is on/off (-1, 0, 1, 2, ..)
+
+varying vec3 varNormal;
+varying vec3 varPosition;
+varying vec3 varLightPosition[cNumLight];
+varying vec3 varLightRay[cNumLight];
+varying vec3 varEyeVec;
+varying vec4 fColor;
+
+void
+main()
+{
+	vec3 N = normalize(varNormal);
+	vec3 L = vec3(0.0);
+	float lambertTerm = 0.0;
+	vec4 Ia = vec4(0.0);
+	vec4 Id = vec4(0.0, 0.0, 0.0, 1.0);
+    vec4 Is = vec4(0.0, 0.0, 0.0, 1.0);
+	vec3 E = vec3(0.0);
+	vec3 R = vec3(0.0);
+	float specular = 0.0;
+	vec4 finalColor = vec4(0.0, 0.0, 0.0, 1.0);
+	
+	for (int i=0; i < cNumLight; i++) {
+		// which light is on/off
+		if (uMovingLight < 0) 
+			continue;
+		else if (uMovingLight > 0) {
+			if ((uMovingLight-1) != i) {
+				continue;
+			}
+		}
+	
+		L = normalize(varLightRay[i]);
+	
+		//Lambert's cosine law
+		lambertTerm = max(dot(N, L), 0.0); 
+    
+		//Ambient Term  
+		vec4 Ia = uLightAmbient[i] * uMaterialAmbient;
+
+		//Diffuse Term
+		Id = vec4(0.0, 0.0, 0.0, 1.0);
+
+		//Specular Term
+		Is = vec4(0.0, 0.0, 0.0, 1.0);
+
+		if (lambertTerm > 0.0)
+		{
+			Id = uLightDiffuse[i] * uMaterialDiffuse * lambertTerm; 
+			E = normalize(varEyeVec + varLightRay[i]); 
+			R = reflect(-L, N);
+			specular = pow( max(dot(R, E), 0.0), uShininess);
+			Is = uLightSpecular[i] * uMaterialSpecular * specular;
+		}
+
+		float attenuation = 1.0;
+		if (isAttenuate) {
+			float dist = distance(varPosition, varLightPosition[i]);
+			attenuation = 1.0 / (1.0 + attenuationFactorA * dist + attenuationFactorB * dist * dist );
+		}
+		
+		//Final color
+		finalColor += Ia + attenuation * (Id + Is);
+	}
+	if (uMovingLight < 0) {
+		vec3 darkD = vec3(darkAmbient) + 0.003 * (vec3(fColor) * max(dot(vec3(0.0, 0.0, -50.0), N), 0.0));
+		finalColor += vec4(darkD, 0.0);
+	}
+	finalColor.a = 1.0;
+    gl_FragColor = clamp(finalColor, 0.0, 1.0);
+}
+</script>
+
+<script type="text/javascript" src="./Common/webgl-utils.js"></script>
+<script type="text/javascript" src="./Common/initShaders.js"></script>
+<script type="text/javascript" src="./Common/MV.js"></script>
+<script type="text/javascript" src="./script/vertex-data-a4.js"></script>
+<script type="text/javascript" src="./script/control_a4_v4.js"></script>
+<script type="text/javascript" src="lightcad.js"></script>
+<style>
+.ui-button.ui-widget.buttonMin {
+   height: 20px;
+   width: 20px;
+}
+.ui-button.ui-widget.buttonPlus {
+   height: 20px;
+   width: 20px;
+}
+.ui-button .ui-button-text {
+   padding: 2px 4px 2px 4px !important;
+   font-size: .8em !important;
+}
+body {
+  font-family: sans-serif;
+  font-size: .9em;
+}
+.ui-slider {
+  height: 8px;
+}
+.ui-slider .ui-slider-handle {
+  height: 16px;
+  width: 16px;
+  font-size: 12px;
+  text-align:center;
+  color: #999999;
+}
+.ui-tabs .ui-tabs-panel {
+  padding: 2px 0 0 0;
+}
+.ui-tabs .ui-tabs-nav li {
+  height: 25px; 
+  font-size: 12px; 
+}
+.readOnlyText {
+  height: 12px;
+  width: 36px;
+  border:0;
+  border-radius:2px;
+  background-color: black;
+  color:white;
+  font-weight:bold;
+  font-size: 11px;
+  padding:2px;
+  text-align:right;
+}
+.divMenu {
+  background-color:#DBDBEA;
+  border:1px solid #c3c3c3;
+  border-radius:3px;
+  padding-top: 2px;
+  padding-bottom:2px;
+}
+.buttonMin, .buttonPlus {
+  font-size: 10px;
+}
+.cellbox {
+  border-bottom: 1px solid;
+}
+</style>
+</head>
+<body>
+<table><tr>
+<td style="width:280px;vertical-align:top;border:0;text-align:center;">
+<div id="tabs1">
+<ul>
+  <li><a href="#tabs-1">Create</a></li>
+  <li><a href="#tabs-2">Select & Modify</a></li>
+</ul>
+<div id="tabs-1" class="style-tabs">
+  <div class="divMenu" style="padding:2px;border-top-radius:8px;">
+    <div style="font-size:small;background-color:#44ee44;"><b>Create Mode&#9658;</b></div>
+    <table style="margin:0 auto;"><tr>
+	<td><label for="menuObject" style="font-size:small;"><b>Object&#9658;</b></label></td>
+    <td style="font-size:small;"><ul id="menuSelectObject">
+	<li id="menuObjectSphere" class="menuObjectSel">Sphere</li>
+	<li id="menuObjectCone" class="menuObjectSel">Cone</li>
+	<li id="menuObjectCylinder" class="menuObjectSel">Cylinder</li>
+	</ul></td>
+	<td><button id="btnUndo" style="margin-left:20px;">&nbsp;&nbsp;Undo&nbsp;&nbsp;</button></td>
+	</tr></table>
+  </div>
+  <div class="divMenu" style="text-align:center;padding:4px;">
+    <span style="font-size:small;"><b>Object color</b>&#9658;</span>
+	<input type="text" id="btnObjColor" class="colorSelector" />
+	<div style="font-size:11px;"><i>Turn off Global-color to show colors</i></div>
+  </div>
+  <div class="divMenu">
+    <div style="font-size:small;"><b>Set: Scale (Size)&#9660;</b></div>
+    <table style="width:100%;font-size:12px;" title="Drag or click the slider.."><tr>
+	    <td style="width:88%;padding-right:6px;"><div id="sliderScaleX"></div></td>
+	    <td style="width:4%;"><button class="buttonMin" id="btnMinSX">&nbsp;</button></td>
+	    <td style="width:4%;"><button class="buttonPlus" id="btnPlusSX">&nbsp;</button></td>
+		<td style="width:4%;"><input type="text" id="textScaleX" readonly size="3" class="readOnlyText" value="3" /></td>
+	  </tr><tr>
+	    <td style="width:88%;padding-right:6px;"><div id="sliderScaleY"></div></td>
+	    <td style="width:4%;"><button class="buttonMin" id="btnMinSY">&nbsp;</button></td>
+	    <td style="width:4%;"><button class="buttonPlus" id="btnPlusSY">&nbsp;</button></td>
+		<td style="width:4%;"><input type="text" id="textScaleY" readonly size="3" class="readOnlyText" value="3" /></td>
+	  </tr><tr>
+	    <td style="width:88%;padding-right:6px;"><div id="sliderScaleZ"></div></td>
+	    <td style="width:4%;"><button class="buttonMin" id="btnMinSZ">&nbsp;</button></td>
+	    <td style="width:4%;"><button class="buttonPlus" id="btnPlusSZ">&nbsp;</button></td>
+		<td style="width:4%;"><input type="text" id="textScaleZ" readonly size="3" class="readOnlyText" value="3" /></td>
+	  </tr>
+    </table>
+  </div>
+  <div class="divMenu">
+    <div style="font-size:small;"><b>Set: Translate (Position)&#9660;</b></div>
+    <table style="width:100%;font-size:12px;" title="Drag or click the slider.."><tr>
+	    <td style="width:88%;padding-right:6px;"></td>
+	    <td style="width:4%;"></td>
+	    <td style="width:4%;"><b>X&#9658;</b></td>
+	    <td style="width:4px;"><input type="text" id="textTranslateX" readonly size="3" class="readOnlyText" value="0" /></td>
+	  </tr><tr>
+	    <td style="width:88%;padding-right:6px;"></td>
+	    <td style="width:4%;"></td>
+	    <td style="width:4%;"><b>Y&#9658;</b></td>
+	    <td style="width:4px;"><input type="text" id="textTranslateY" readonly size="3" class="readOnlyText" value="0" /></td>
+	  </tr><tr>
+	    <td style="width:88%;padding-right:6px;"><div id="sliderTranslateZ"></div></td>
+	    <td style="width:4%;"><button class="buttonMin" id="btnMinTZ">&nbsp;</button></td>
+	    <td style="width:4%;"><button class="buttonPlus" id="btnPlusTZ">&nbsp;</button></td>
+		<td style="width:4px;"><input type="text" id="textTranslateZ" readonly size="3" class="readOnlyText" value="0" /></td>
+	  </tr>
+    </table>
+	<div style="font-size:small;font-weight:bold;background-color:#444444;color:white;padding:2px;">Click on canvas to place object &#9658;</div>
+  </div>
+  <div class="divMenu">
+    <div style="font-size:small;"><b>Set: Rotate (Orientation)&#9660;</b></div>
+    <table style="width:100%;font-size:12px;" title="Drag or click the slider.."><tr>
+	    <td style="width:88%;padding-right:6px;"><div id="sliderRotateX"></div></td>
+	    <td style="width:4%;"><button class="buttonMin" id="btnMinRX">&nbsp;</button></td>
+	    <td style="width:4%;"><button class="buttonPlus" id="btnPlusRX">&nbsp;</button></td>
+		<td style="width:4%;"><input type="text" id="textRotateX" readonly size="3" class="readOnlyText" value="0" /></td>
+	  </tr><tr>
+	    <td style="width:88%;padding-right:6px;"><div id="sliderRotateY"></div></td>
+	    <td style="width:4%;"><button class="buttonMin" id="btnMinRY">&nbsp;</button></td>
+	    <td style="width:4%;"><button class="buttonPlus" id="btnPlusRY">&nbsp;</button></td>
+		<td style="width:4%;"><input type="text" id="textRotateY" readonly size="3" class="readOnlyText" value="0" /></td>
+	  </tr><tr>
+	    <td style="width:88%;padding-right:6px;"><div id="sliderRotateZ"></div></td>
+	    <td style="width:4%;"><button class="buttonMin" id="btnMinRZ">&nbsp;</button></td>
+	    <td style="width:4%;"><button class="buttonPlus" id="btnPlusRZ">&nbsp;</button></td>
+		<td style="width:4%;"><input type="text" id="textRotateZ" readonly size="3" class="readOnlyText" value="0" /></td>
+	  </tr>
+    </table>
+  </div>
+</div>
+<div id="tabs-2">
+  <div class="divMenu" style="padding:4px;border-top-radius:8px;">
+    <div style="font-size:small;background-color:#ff5555;"><b>Select & Modify Mode&#9658;</b></div>
+	<div style="font-size:small;"><b>Select an object&#9660;</b></div>
+	<div id="tableObjects" style="overflow-y:scroll;border:1px solid black;height:84px;">
+	</div>
+	<div style="padding:4px;">
+	<button id="deleteObject">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<b>Delete selected object</b>&nbsp;&nbsp;&nbsp;</button>
+	</div>
+  </div>
+  <div class="divMenu">
+	<span style="font-size:small;"><b>Modify: Object's color</b>&#9658;</span>
+	<input type="text" id="btnEditColor" class="colorSelector" />
+	<div style="font-size:11px;"><i>Turn off Global-color to show colors</i></div>
+  </div>
+  <div class="divMenu">
+    <div style="font-size:small;"><b>Modify: Scale (Size)&#9660;</b></div>
+    <table style="width:100%;font-size:12px;" title="Drag or click the slider.."><tr>
+	    <td style="width:88%;padding-right:6px;"><div id="sliderScale2X"></div></td>
+	    <td style="width:4%;"><button class="buttonMin" id="btnMinS2X">&nbsp;</button></td>
+	    <td style="width:4%;"><button class="buttonPlus" id="btnPlusS2X">&nbsp;</button></td>
+		<td style="width:4%;"><input type="text" id="textScale2X" readonly size="3" class="readOnlyText" value="0" /></td>
+	  </tr><tr>
+	    <td style="width:88%;padding-right:6px;"><div id="sliderScale2Y"></div></td>
+	    <td style="width:4%;"><button class="buttonMin" id="btnMinS2Y">&nbsp;</button></td>
+	    <td style="width:4%;"><button class="buttonPlus" id="btnPlusS2Y">&nbsp;</button></td>
+		<td style="width:4%;"><input type="text" id="textScale2Y" readonly size="3" class="readOnlyText" value="0" /></td>
+	  </tr><tr>
+	    <td style="width:88%;padding-right:6px;"><div id="sliderScale2Z"></div></td>
+	    <td style="width:4%;"><button class="buttonMin" id="btnMinS2Z">&nbsp;</button></td>
+	    <td style="width:4%;"><button class="buttonPlus" id="btnPlusS2Z">&nbsp;</button></td>
+		<td style="width:4%;"><input type="text" id="textScale2Z" readonly size="3" class="readOnlyText" value="0" /></td>
+	  </tr>
+    </table>
+  </div>
+  <div class="divMenu">
+    <div style="font-size:small;"><b>Modify: Translate (Position)&#9660;</b></div>
+    <table style="width:100%;font-size:12px;" title="Drag or click the slider.."><tr>
+	    <td style="width:88%;padding-right:6px;"><div id="sliderTranslate2X"></div></td>
+	    <td style="width:4%;"><button class="buttonMin" id="btnMinT2X">&nbsp;</button></td>
+	    <td style="width:4%;"><button class="buttonPlus" id="btnPlusT2X">&nbsp;</button></td>
+		<td style="width:4%;"><input type="text" id="textTranslate2X" readonly size="3" class="readOnlyText" value="0" /></td>
+	  </tr><tr>
+	    <td style="width:88%;padding-right:6px;"><div id="sliderTranslate2Y"></div></td>
+	    <td style="width:4%;"><button class="buttonMin" id="btnMinT2Y">&nbsp;</button></td>
+	    <td style="width:4%;"><button class="buttonPlus" id="btnPlusT2Y">&nbsp;</button></td>
+		<td style="width:4%;"><input type="text" id="textTranslate2Y" readonly size="3" class="readOnlyText" value="0" /></td>
+	  </tr><tr>
+	    <td style="width:88%;padding-right:6px;"><div id="sliderTranslate2Z"></div></td>
+	    <td style="width:4%;"><button class="buttonMin" id="btnMinT2Z">&nbsp;</button></td>
+	    <td style="width:4%;"><button class="buttonPlus" id="btnPlusT2Z">&nbsp;</button></td>
+		<td style="width:4%;"><input type="text" id="textTranslate2Z" readonly size="3" class="readOnlyText" value="0" /></td>
+	  </tr>
+    </table>
+  </div>
+  <div class="divMenu">
+    <div style="font-size:small;"><b>Modify: Rotate (Orientation)&#9660;</b></div>
+    <table style="width:100%;font-size:12px;" title="Drag or click the slider.."><tr>
+	    <td style="width:88%;padding-right:6px;"><div id="sliderRotate2X"></div></td>
+	    <td style="width:4%;"><button class="buttonMin" id="btnMinR2X">&nbsp;</button></td>
+	    <td style="width:4%;"><button class="buttonPlus" id="btnPlusR2X">&nbsp;</button></td>
+		<td style="width:4%;"><input type="text" id="textRotate2X" readonly size="3" class="readOnlyText" value="0" /></td>
+	  </tr><tr>
+	    <td style="width:88%;padding-right:6px;"><div id="sliderRotate2Y"></div></td>
+	    <td style="width:4%;"><button class="buttonMin" id="btnMinR2Y">&nbsp;</button></td>
+	    <td style="width:4%;"><button class="buttonPlus" id="btnPlusR2Y">&nbsp;</button></td>
+		<td style="width:4%;"><input type="text" id="textRotate2Y" readonly size="3" class="readOnlyText" value="0" /></td>
+	  </tr><tr>
+	    <td style="width:88%;padding-right:6px;"><div id="sliderRotate2Z"></div></td>
+	    <td style="width:4%;"><button class="buttonMin" id="btnMinR2Z">&nbsp;</button></td>
+	    <td style="width:4%;"><button class="buttonPlus" id="btnPlusR2Z">&nbsp;</button></td>
+		<td style="width:4%;"><input type="text" id="textRotate2Z" readonly size="3" class="readOnlyText" value="0" /></td>
+	  </tr>
+    </table>
+  </div>
+</div>
+</div>
+<div class="divMenu" style="padding:4px;">
+  <span>&nbsp;Assignment #4<br/>Adding Lights</span><br/><span style="font-size:smaller;">Interactive Computer Graphics with WebGL<br/>
+  <a href="https://www.coursera.org/course/webgl" target="_blank">https://www.coursera.org/course/webgl</a>&nbsp;</span>
+  </div>
+</td>
+<td style="width:240px;vertical-align:top;border:0;text-align:center;">
+<div class="divMenu" style="padding:4px;background-color:#333333;">
+  <canvas id="gl-canvas" width="600"" height="600"
+    Oops ... your browser doesn't support the HTML5 canvas element
+  </canvas>
+</div>
+<div id="msg1" style="text-align:center;color:red;background-color:#ffff99;";></div>
+<div style="text-align:center;"><i>Tested in Chrome and Firefox, IE is not supported.</i></div>
+</td>
+<td style="width:240px;vertical-align:top;border:0;text-align:center;">
+  <div class="divMenu" style="text-align:center;padding:4px;">
+	<span style="font-size:small;"><b>Moving Lights</b>&#9660;</span><br/>
+	<div style="padding:2px;">
+	<span id="radioMovingLight">
+	<input type="radio" name="radioMovingLight" id="radioMovingLight1" value="0" checked="checked" />
+	<label for="radioMovingLight1" style="font-size:small;"><b>&nbsp;&nbsp;&nbsp;Both&nbsp;&nbsp;&nbsp;</b></label>
+	<input type="radio" name="radioMovingLight" id="radioMovingLight2" value="1" />
+	<label for="radioMovingLight2" style="font-size:small;"><b>&nbsp;Light-1&nbsp;</b></label>
+	<input type="radio" name="radioMovingLight" id="radioMovingLight3" value="2" />
+	<label for="radioMovingLight3" style="font-size:small;"><b>&nbsp;Light-2&nbsp;</b></label>
+	<input type="radio" name="radioMovingLight" id="radioMovingLightNone" value="-1" />
+	<label for="radioMovingLightNone" style="font-size:small;"><b>&nbsp;None&nbsp;</b></label>
+    </span></div>
+	<table style="text-align:right;">
+      <tr><td><span style="font-size:small;"><b>Ambient-1</b>&#9658;</span></td>
+      <td><input type="text" id="btnAmbientColor" class="colorSelector" /></td>
+	  <td><span style="font-size:small;"><b>Ambient-2</b>&#9658;</span></td>
+	  <td><input type="text" id="btnAmbientColor2" class="colorSelector" /></td></tr>
+	  <tr><td><span style="font-size:small;"><b>Diffuse-1</b>&#9658;</span></td>
+      <td><input type="text" id="btnDiffuseColor" class="colorSelector" /></td>
+	  <td><span style="font-size:small;"><b>Diffuse-2</b>&#9658;</span></td>
+      <td><input type="text" id="btnDiffuseColor2" class="colorSelector" /></td></tr>
+	  <tr><td><span style="font-size:small;"><b>Specular-1</b>&#9658;</span></td>
+      <td><input type="text" id="btnSpecularColor" class="colorSelector" /></td>
+	  <td><span style="font-size:small;"><b>Specular-2</b>&#9658;</span></td>
+      <td><input type="text" id="btnSpecularColor2" class="colorSelector" /></td></tr>
+	</table>
+	<div><img src="direction.png" /></div>
+	<table style="width:100%;">
+	<tr><td style="width:50%;">
+	  <table style="font-size:12px;text-align:left;"><tr>
+	  <td colspan="2"><span style="font-size:small;"><b>Position-1</b>&#9660;</span><br/></td>
+	  </tr><tr>
+      <td><label for="textLightX"><b>X-1&#9658;</b></label></td>
+      <td><input type="text" id="textLightX" readonly size="4" class="readOnlyText" value="0" /></td>
+	  </tr><tr>
+	  <td><label for="textLightY"><b>Y-1&#9658;</b></label></td>
+      <td><input type="text" id="textLightY" readonly size="4" class="readOnlyText" value="0" /></td>
+	  </tr><tr>
+	  <td><label for="textLightZ"><b>Z-1&#9658;</b></label></td>
+      <td><input id="spinnerPosMovingLightZ1" value="10" size="2" /></td>
+	  </tr></table>
+	</td>
+	<td style="width:50%;">
+	  <table style="font-size:12px;text-align:left;"><tr>
+	  <td colspan="2"><span style="font-size:small;"><b>Position-2</b>&#9660;</span></td>
+	  </tr><tr>
+      <td><label for="textLightX2"><b>X-2&#9658;</b></label></td>
+      <td><input type="text" id="textLightX2" readonly size="4" class="readOnlyText" value="0" /></td>	  
+	  </tr><tr>
+	  <td><label for="textLightY2"><b>Y-2&#9658;</b></label></td>
+      <td><input type="text" id="textLightY2" readonly size="4" class="readOnlyText" value="0" /></td>
+	  </tr><tr>
+	  <td><label for="textLightZ2"><b>Z-2&#9658;</b></label></td>
+      <td><input id="spinnerPosMovingLightZ2" value="10" size="2" /></td>
+	  </tr></table>
+	</td></tr></table>
+  </div>
+  <div class="divMenu" style="text-align:center;padding:4px;">
+    <span style="font-size:small;"><b>All Objects' Material</b>&#9660;</span><br/>
+	<table style="text-align:right;">
+    <tr><td><span style="font-size:small;"><b>Ambient</b>&#9658;</span></td>
+    <td style="text-align:left;"><input type="text" id="btnMatAmbientColor" class="colorSelector" /></td>
+	<td>&nbsp;</td></tr>
+	<tr><td><span style="font-size:small;"><b>Diffuse</b>&#9658;</span></td>
+    <td style="text-align:left;"><input type="text" id="btnMatDiffuseColor" class="colorSelector" /></td>
+	<td><input type="checkbox" id="checkDiffuseGlobal" checked="checked" />
+	<label for="checkDiffuseGlobal" style="font-size:small;">&#9668;<b>Global-color</b></label></td></tr>
+	<tr><td><span style="font-size:small;"><b>Specular</b>&#9658;</span></td>
+    <td style="text-align:left;"><input type="text" id="btnMatSpecularColor" class="colorSelector" /></td>
+	<td>&nbsp;</td></tr>
+	<tr><td><span style="font-size:small;"><b>Shininess</b>&#9658;</span></td>
+	<td colspan="2">
+	<table><tr>
+        <td class="tableSlider"><input type="text" id="textShininess" readonly size="3" class="readOnlyText" value="80" /></td>
+		<td style="width:180px;"><div id="sliderShininess"></div></td>
+	</tr></table>
+	</td></tr>
+	</table>
+  </div>
+  <div class="divMenu" style="padding:4px;">
+    <input type="checkbox" id="checkAttenuate">
+	<label for="checkAttenuate" style="font-size:small;">&#9668;<b>Distance attenuation</b></label>
+	<div style="font-size:11px;"><i>Change Z-1 or Z-2 to set light distance</i></div>
+  </div>
+  <div class="divMenu" style="padding:4px;">
+    <span id="radioSurface">
+    <span><b>Surface</b>&#9660;</span><br/>
+	<input type="radio" name="radioSurface" id="radioSurface1" value="0" />
+	<label for="radioSurface1" style="font-size:small;"><b>&nbsp;&nbsp;&nbsp;Both&nbsp;&nbsp;&nbsp;</b></label>
+	<input type="radio" name="radioSurface" id="radioSurface2" value="1"  checked="checked" />
+	<label for="radioSurface2" style="font-size:small;"><b>&nbsp;&nbsp;Solid&nbsp;&nbsp;</b></label>
+	<input type="radio" name="radioSurface" id="radioSurface3" value="2" />
+	<label for="radioSurface3" style="font-size:small;"><b>Wireframe</b></label>
+    </span>
+  </div>
+  <div class="divMenu" style="padding:4px;">
+    <button id="animPlayPause">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<b>Play / Pause</b>&nbsp;&nbsp;&nbsp;</button>
+	<div style="height:4px;"></div>
+    <button id="clearCanvas">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<b>Clear canvas</b>&nbsp;&nbsp;&nbsp;</button>
+	<div style="height:4px;"></div>
+	<a id="downloadImage" href="#" download>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<b>Save image</b>&nbsp;&nbsp;&nbsp;&nbsp;</a>
+  </div>
+</td>
+</tr>
+</table>
+<div>
+<h2>Help:</h2>
+<b>To place an object:</b><br/>
+<ul>
+<li>Open "Create" tab on the left pane.</li>
+<li>Select an object from drop-down menu, a sphere, a cone, or a cylinder.</li>
+<li>Set object's color from "Object color" color-picker. Note that, if Material's Diffuse is set to be global, then this color have no effect. In order to this color to be rendered, then Material's diffuse must be turned off.</li>
+<li>Set size (scale) of object. In 3D: X, Y and Z scales.</li>
+<li>Set position (translate) of object. Z translation can be set via slider. X and Y translation is set automatically when mouse-clicking on canvas.</li>
+<li>Set orientation (rotate) of object. In 3D: X, Y and Z rotations. This is object's rotation, not world rotation, not camera rotation.</li>
+<li>Click on canvas to place the chosen object.</li>
+</ul>
+<b>To select an object:</b><br/>
+<ul>
+<li>Open "Select & Modify" tab on the left pane.</li>
+<li>In the table, select an object to be selected, by clicking on the radio-button. Scroll the table if necessary.</li>
+<li>After selecting the object, it can be deleted, or to be modified.</li>
+<li>To <b>delete</b> the selected object, click on "Delete selected object" button.</li>
+<li>To <b>modify</b> the selected object, slide the sliders: scale, translate, rotate.</li>
+</ul>
+
+<b>Moving Lights:</b><br/>
+<ul>
+<li>There are two moving lights.</li>
+<li>Light #1 is moving in circular track around the canvas.</li>
+<li>Light #2 is moving in rectangular track around the canvas.</li>
+<li>Each light's ambient, diffuse, and specular can be changed via color-picker.</li>
+<li>Z position of each light can be changed via spinner.</li>
+<li>Which light is on or off can be selected via radio-button. Either light #1 only, light #2 only, both lights, or none. When none light is selected, then a dark ambient light make the object(s) still visible.</li>
+</ul>
+
+<b>Material:</b><br/>
+<ul>
+<li>Material's ambient, diffuse, specular can be selected via color-picker.</li>
+<li>Material's diffuse determine the object's color.</li>
+<li>If material's diffuse is global, then all objects have the same color.</li>
+<li>In order for each object to have their own color, then global diffuse must be turned off via the check-box.</li>
+<li>Material's shininess can be set via the slider.</li>
+</ul>
+
+<b>Distance attenuation:</b><br/>
+<ul>
+<li>By default there is no distance attenuation of the lights.</li>
+<li>Turn on/off the distance attenuation via the check-box.</li>
+<li>Far light have smaller intensity compared to closer light.</li>
+<li>Change Z-1 or Z-2 (light distances) for clearer effect.</li>
+</ul>
+
+<b>Surface rendering:</b><br/>
+<ul>
+<li>Objects can be rendered in solid shapes, or in wireframes (meshes), or both.</li>
+</ul>
+
+<b>Animation: Play, Pause:</b><br/>
+<ul>
+<li>Click "Play / Pause" button to start or stop animation.</li>
+</ul>
+
+<b>Canvas clearance:</b><br/>
+<ul>
+<li>Click "Clear canvas" button to delete all objects on canvas.</li>
+</ul>
+
+<b>Save image:</b><br/>
+<ul>
+<li>Click "Save image" button to save / download current canvas' image.</li>
+</ul>
+<hr>
+</div>
+</body>
+</html>
