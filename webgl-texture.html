@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html;charset=utf-8" >
+<meta name="keywords" content="WebGL,interactive">
+<meta name="author" content="soesilo wijono">
+<title>Assignment 5 - Texture Mapping to a Sphere</title>
+<link rel="stylesheet" href="./jquery-ui/themes/smoothness/jquery-ui.css">
+<link rel="stylesheet" href="./jquery-ui/themes/smoothness/theme.css">
+<script src="./jquery/jquery.min.js"></script>
+<script src="./jquery-ui/jquery-ui.min.js"></script>
+<script src='./script/spectrum.js'></script>
+<link rel='stylesheet' href='./script/spectrum.css' />
+
+<script id="vertex-shader" type="x-shader/x-vertex">
+attribute vec4 vPosition;
+attribute vec3 aVertexNormal;
+attribute vec2 aTextureCoord;
+
+uniform mat4 modelViewMatrix;
+uniform mat4 projectionMatrix;
+uniform mat3 uNMatrix;
+
+varying vec4 varPosition;
+varying vec2 varTextureCoord;
+varying vec3 varNormal;
+
+void main() 
+{
+	gl_Position = projectionMatrix * modelViewMatrix * vPosition;
+	varPosition = modelViewMatrix * vPosition;
+	varTextureCoord = aTextureCoord;
+	varNormal = normalize(vec3(uNMatrix * aVertexNormal));
+} 
+</script>
+
+<script id="fragment-shader" type="x-shader/x-fragment">
+
+precision mediump float;
+
+uniform sampler2D uSampler;
+uniform vec3 uAmbientColor;
+uniform vec3 uPointLightLocation;
+uniform vec3 uPointLightSpecularColor;
+uniform vec3 uPointLightDiffuseColor;
+uniform float uMaterialShininess;
+
+varying vec4 varPosition;
+varying vec2 varTextureCoord;
+varying vec3 varNormal;
+
+void
+main()
+{
+	vec3 normal = normalize(varNormal);
+	vec3 eyeDirection = normalize(-varPosition.xyz);
+	
+	vec3 lightDirection = normalize(uPointLightLocation - varPosition.xyz);
+	float specularLightWeighting = 0.0;
+	vec3 reflectionDirection = reflect(-lightDirection, normal);
+	
+	// specular highlighting + bump mapping
+	float shininess = texture2D(uSampler, vec2(varTextureCoord.s, 
+						varTextureCoord.t)).r * 255.0 / uMaterialShininess;
+	if (shininess < 255.0) {
+		specularLightWeighting = pow(max(dot(reflectionDirection, eyeDirection), 0.0), shininess * 2.0);
+	}
+	float diffuseLightWeighting = max(dot(normal, lightDirection), 0.0);
+	vec3 lightWeighting = uAmbientColor
+			+ uPointLightSpecularColor * specularLightWeighting
+			+ uPointLightDiffuseColor * diffuseLightWeighting;
+  
+	vec4 textureColor = texture2D(uSampler, vec2(varTextureCoord.s, varTextureCoord.t));
+	gl_FragColor = vec4(textureColor.rgb * lightWeighting, textureColor.a); 
+}
+</script>
+
+<script type="text/javascript" src="./Common/webgl-utils.js"></script>
+<script type="text/javascript" src="./Common/initShaders.js"></script>
+<script type="text/javascript" src="./Common/MV2.js"></script>
+<script type="text/javascript" src="./script/vertex-data-a5-v1.js"></script>
+<script type="text/javascript" src="./script/control_a5_v2.js"></script>
+<script type="text/javascript" src="webgl-texture.js"></script>
+<style>
+.ui-button.ui-widget.buttonMin {
+   height: 20px;
+   width: 20px;
+}
+.ui-button.ui-widget.buttonPlus {
+   height: 20px;
+   width: 20px;
+}
+.ui-button .ui-button-text {
+   padding: 2px 4px 2px 4px !important;
+   font-size: .8em !important;
+}
+body {
+  font-family: sans-serif;
+  font-size: .9em;
+}
+.ui-slider {
+  height: 8px;
+}
+.ui-slider .ui-slider-handle {
+  height: 16px;
+  width: 16px;
+  font-size: 12px;
+  text-align:center;
+  color: #999999;
+}
+.ui-tabs .ui-tabs-panel {
+  padding: 2px 0 0 0;
+}
+.ui-tabs .ui-tabs-nav li {
+  height: 25px; 
+  font-size: 12px; 
+}
+.readOnlyText {
+  height: 12px;
+  width: 36px;
+  border:0;
+  border-radius:2px;
+  background-color: black;
+  color:white;
+  font-weight:bold;
+  font-size: 11px;
+  padding:2px;
+  text-align:right;
+}
+.divMenu {
+  background-color:#DBDBEA;
+  border:1px solid #c3c3c3;
+  border-radius:4px;
+  padding-top: 8px;
+  padding-bottom:8px;
+}
+.ui-button.ui-widget.btnRotation {
+   height: 24px;
+   width: 80px;
+}
+.ui-button.ui-widget.btnRotationS {
+   height: 48px;
+   width: 80px;
+}
+.buttonMin, .buttonPlus {
+  font-size: 10px;
+}
+.cellbox {
+  border-bottom: 1px solid;
+}
+</style>
+</head>
+<body>
+<table><tr>
+<td style="width:280px;vertical-align:top;border:0;text-align:right;">
+  <div class="divMenu" style="padding:8px;">
+    <span id="radioTexture">
+    <span><b>Texture</b>&#9660;</span><br/>
+	<input type="radio" name="radioTexture" id="radioTexture2" value="1"  checked="checked" />
+	<label for="radioTexture2" style="font-size:small;"><b>&nbsp;&nbsp;Checkerboard&nbsp;&nbsp;</b></label>
+	<input type="radio" name="radioTexture" id="radioTexture3" value="2" />
+	<label for="radioTexture3" style="font-size:small;"><b>&nbsp;&nbsp;&nbsp;&nbsp;Image&nbsp;&nbsp;&nbsp;&nbsp;</b></label>
+	<input type="radio" name="radioTexture" id="radioTexture4" value="3" />
+	<label for="radioTexture4" style="font-size:small;"><b>&nbsp;&nbsp;&nbsp;&nbsp;Pattern&nbsp;&nbsp;&nbsp;&nbsp;</b></label>
+    </span>
+  </div>
+  <div class="divMenu" style="padding:8px;">
+    <span id="radioTextureCoord">
+    <span><b>Texture Coordinate</b>&#9660;</span><br/>
+	<input type="radio" name="radioTextureCoord" id="radioTextureCoord4" value="3" />
+	<label for="radioTextureCoord4" style="font-size:small;"><b>&nbsp;&nbsp;Cylindrical zigzag&nbsp;&nbsp;</b></label>
+	<input type="radio" name="radioTextureCoord" id="radioTextureCoord3" value="2" />
+	<label for="radioTextureCoord3" style="font-size:small;"><b>&nbsp;&nbsp;Planar&nbsp;&nbsp;</b></label>
+	<input type="radio" name="radioTextureCoord" id="radioTextureCoord2" value="1"  checked="checked" />
+	<label for="radioTextureCoord2" style="font-size:small;"><b>&nbsp;&nbsp;Spherical&nbsp;&nbsp;</b></label>
+    </span>
+  </div>
+  <div class="divMenu">
+    <div style="font-size:small;"><b>Scale (Size)&#9660;</b></div>
+    <table style="width:100%;font-size:12px;" title="Drag or click the slider.."><tr>
+	    <td style="width:88%;padding-right:6px;"><div id="sliderScaleX"></div></td>
+	    <td style="width:4%;"><button class="buttonMin" id="btnMinSX">&nbsp;</button></td>
+	    <td style="width:4%;"><button class="buttonPlus" id="btnPlusSX">&nbsp;</button></td>
+		<td style="width:4%;"><input type="text" id="textScaleX" readonly size="3" class="readOnlyText" value="3" /></td>
+	  </tr><tr>
+	    <td style="width:88%;padding-right:6px;"><div id="sliderScaleY"></div></td>
+	    <td style="width:4%;"><button class="buttonMin" id="btnMinSY">&nbsp;</button></td>
+	    <td style="width:4%;"><button class="buttonPlus" id="btnPlusSY">&nbsp;</button></td>
+		<td style="width:4%;"><input type="text" id="textScaleY" readonly size="3" class="readOnlyText" value="3" /></td>
+	  </tr><tr>
+	    <td style="width:88%;padding-right:6px;"><div id="sliderScaleZ"></div></td>
+	    <td style="width:4%;"><button class="buttonMin" id="btnMinSZ">&nbsp;</button></td>
+	    <td style="width:4%;"><button class="buttonPlus" id="btnPlusSZ">&nbsp;</button></td>
+		<td style="width:4%;"><input type="text" id="textScaleZ" readonly size="3" class="readOnlyText" value="3" /></td>
+	  </tr>
+    </table>
+  </div>
+  <div class="divMenu">
+    <div style="font-size:small;"><b>Rotation (Orientation)&#9660;</b></div>
+    <div style="padding:4px;">
+	<table style="margin:0 auto;">
+	<tr>
+	  <td>&nbsp;</td>
+	  <td><button id="btnRotationY0" class="btnRotation">Y&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</button></td>
+	  <td>&nbsp;</td>
+	</tr>
+	<tr>
+	  <td><button id="btnRotationX1" class="btnRotation">X&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</button></td>
+	  <td rowspan="2"><button id="btnRotationStop" class="btnRotationS">Stop&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</button></td>
+	  <td><button id="btnRotationX0" class="btnRotation">X&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</button></td>
+	</tr>
+	<tr>
+	  <td><button id="btnRotationZ1" class="btnRotation">Z&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</button></td>
+	  
+	  <td><button id="btnRotationZ0" class="btnRotation">Z&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</button></td>
+	</tr>
+	<tr>
+	  <td>&nbsp</td>
+	  <td><button id="btnRotationY1" class="btnRotation">Y&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</button></td>
+	  <td>&nbsp;</td>
+	</tr>
+	<tr>
+	  <td>&nbsp</td>
+	  <td><button id="btnRotationReset" class="btnRotation">Reset&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</button></td>
+	  <td>&nbsp;</td>
+	</tr>
+	</table>
+    </div>
+  </div>
+  <div class="divMenu" style="padding:8px;">
+	<a id="downloadImage" href="#" download>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<b>Save image</b>&nbsp;&nbsp;&nbsp;&nbsp;</a>
+  </div>
+<div class="divMenu" style="padding:8px;text-align:center;">
+  <span>&nbsp;Assignment #5<br/>Texture Mapping to a Sphere</span><br/><span style="font-size:smaller;">Interactive Computer Graphics with WebGL<br/>
+  <a href="https://www.coursera.org/course/webgl" target="_blank">https://www.coursera.org/course/webgl</a>&nbsp;</span>
+  </div>
+</td>
+<td style="width:240px;vertical-align:top;border:0;text-align:center;">
+<div class="divMenu" style="padding:4px;background-color:#333333;">
+<canvas id="gl-canvas" width="600"" height="600"
+  Oops ... your browser doesn't support the HTML5 canvas element
+</canvas>
+</div>
+<div style="text-align:center;"><i>Tested only in Chrome and Firefox.</i></div>
+</td>
+</tr>
+</table>
+</body>
+</html>
